@@ -6,9 +6,9 @@ from torch import nn, optim
 from torch.nn import functional as F
 from torchvision import datasets, transforms
 from torchvision.utils import save_image
-import matplotlib.pyplot as plt # ***
-import numpy as np # ***
-from matplotlib.colors import ListedColormap # ***
+import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib.colors import ListedColormap
 from scipy.stats import gaussian_kde
 from scipy.stats import norm
 from matplotlib.gridspec import GridSpec
@@ -94,7 +94,7 @@ def loss_function(recon_x, x, mu, logvar):
 
     return BCE + KLD
 
-
+train_losses = []
 def train(epoch):
     model.train()
     train_loss = 0
@@ -106,14 +106,18 @@ def train(epoch):
         loss.backward()
         train_loss += loss.item()
         optimizer.step()
+
         if batch_idx % args.log_interval == 0:
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
                 epoch, batch_idx * len(data), len(train_loader.dataset),
                 100. * batch_idx / len(train_loader),
                 loss.item() / len(data)))
+    
+    average_train_loss = train_loss / len(train_loader.dataset)
+    train_losses.append(average_train_loss)
 
     print('====> Epoch: {} Average loss: {:.4f}'.format(
-          epoch, train_loss / len(train_loader.dataset)))
+          epoch, average_train_loss))
 
 
 def test(epoch):
@@ -137,70 +141,67 @@ def test(epoch):
 
     test_loss /= len(test_loader.dataset)
     print('====> Test set loss: {:.4f}'.format(test_loss))
-    # ***
+    
     if epoch == args.epochs:
-        cmap = ListedColormap(['purple', 'blue', 'green', 'orange', 'red', 'brown', 'pink', 'gray', 'olive', 'cyan'])
-        latent_vectors = np.concatenate(latent_vectors, axis=0)
         torch.save(model.state_dict(), "model.pt")
+
+        # latent space distributions figure
+        cmap = ListedColormap(['purple', 'blue', 'green', 'orange', 'red', 'brown', 'pink', 'gray', 'olive', 'cyan'])
+
+        latent_vectors = np.concatenate(latent_vectors, axis=0)
         x = latent_vectors[:, 0]
         y = latent_vectors[:, 1]
 
-        plt.figure(figsize=(8, 8))
-        gs = GridSpec(3, 2, width_ratios=[3, 1], height_ratios=[1, 3, 0.2])
-        ax1 = plt.subplot(gs[1, 0])
-        scatter = ax1.scatter(x, y, c=labels, cmap=cmap, s=10)
+        # scatter plot of latent space
+        plt.figure(figsize=(6, 7.4))
+        gs = GridSpec(5, 3, width_ratios=[4.2, 0.2, 1.6], height_ratios=[1.6, 0.2, 4.2, 1, 0.4], wspace=0, hspace=0)
+        sctrgrid = plt.subplot(gs[2, 0])
+        sctr = sctrgrid.scatter(x, y, c=labels, cmap=cmap, s=10) # colours
+        # sctr = sctrgrid.plot(x, y,'.', markersize=1, color=(0.1, 0.1, 0.1, 0.5)) # gaussian distribution
+        sctrgrid.set_xlabel('Dimension 1')
+        sctrgrid.set_ylabel('Dimension 2')
 
-        ax1_legend = plt.subplot(gs[2, 0])  # Occupies all rows, third column
-        plt.colorbar(scatter, cax=ax1_legend, orientation='horizontal')
+        # colour legend
+        cbargrid = plt.subplot(gs[4, 0])
+        plt.colorbar(sctr, cax=cbargrid, orientation='horizontal')
         
-        # Distribution curves for dimension 1
-        ax2 = plt.subplot(gs[0, 0], sharex=ax1)
-        density = gaussian_kde(x)
+        # distribution curves for dimension 1
+        xdistr = plt.subplot(gs[0, 0], sharex=sctrgrid)
+        xdensity = gaussian_kde(x)
         xs = np.linspace(np.min(x), np.max(x), 100)
-        ax2.plot(xs, density(xs), color='blue')
-        ax2.set_ylabel('Density')
-        ax2.autoscale(enable=True, axis='y')
-        # ax2.set_xticks([])
+        xdistr.plot(xs, xdensity(xs), color='blue')
+        xdistr.set_ylabel('Density')
+        xdistr.autoscale(enable=True, axis='y')
+        xdistr.tick_params(axis='x', which='both', bottom=False, labelbottom=False)
 
-        # Overlay Gaussian curve for dimension 1
+        # gaussian curve for dimension 1
         mean_x, std_x = norm.fit(x)
-        ax2.plot(xs, norm.pdf(xs, mean_x, std_x), 'r--', label=f'Gaussian Fit\nMean: {mean_x:.2f}\nStd: {std_x:.2f}')
-        ax2.legend()
+        xdistr.plot(xs, norm.pdf(xs, mean_x, std_x), 'r--', label=f'Mean: {mean_x:.2f}\nStd: {std_x:.2f}')
+        xdistr.legend(loc='upper right')
 
-        # Distribution curves for dimension 2
-        ax3 = plt.subplot(gs[1, 1], sharey=ax1)
-        density = gaussian_kde(y)
+        # distribution curves for dimension 2
+        ydistr = plt.subplot(gs[2, 2], sharey=sctrgrid)
+        ydensity = gaussian_kde(y)
         ys = np.linspace(np.min(y), np.max(y), 100)
-        ax3.plot(density(ys), ys, color='blue')
-        ax3.set_xlabel('Density')
-        ax3.autoscale(enable=True, axis='x')
-        # ax3.set_yticks([])
+        ydistr.plot(ydensity(ys), ys, color='blue')
+        ydistr.set_xlabel('Density')
+        ydistr.autoscale(enable=True, axis='x')
+        ydistr.tick_params(axis='y', which='both', left=False, labelleft=False)
 
-
-        # Overlay Gaussian curve for dimension 2
+        # gaussian curve for dimension 2
         mean_y, std_y = norm.fit(y)
-        ax3.plot(norm.pdf(ys, mean_y, std_y), ys, 'r--', label=f'Gaussian Fit\nMean: {mean_y:.2f}\nStd: {std_y:.2f}')
-        ax3.legend()
+        ydistr.plot(norm.pdf(ys, mean_y, std_y), ys, 'r--', label=f'Mean: {mean_y:.2f}\nStd: {std_y:.2f}')
+        ydistr.legend(loc='lower right')
 
-        plt.subplots_adjust(hspace=0.1, wspace=0.1)
-        
-        # TODO: for poster add point to graph that is hollow(black border white inside)
-        # the x,y would be the cords for broken point.png 
-        # then after we have exported the graph we can put a line pointing to the point and display broken.png
-
-        # plt.xlabel('Latent Dimension 1')
-        # plt.ylabel('Latent Dimension 2')
         plt.suptitle('Latent Space Distributions', fontsize=14, fontweight='bold', y=0.95, va='center')
         plt.show()
-        # ***
 
 if __name__ == "__main__":
-    load_model = input("Do you want to load the model? (y/n):")
+    load_model = input("Do you want to load the model? (y/n): ")
     if load_model.lower() == "y":
         load_model = True
     else: 
         load_model = False
-    print(load_model)
     if load_model:
         model.load_state_dict(torch.load("model.pt"))
         print("Loading model...")
@@ -213,14 +214,20 @@ if __name__ == "__main__":
             sample = model.decode(sample).cpu()
             save_image(sample.view(64, 1, 28, 28),
                        'results/sample_' + str(epoch) + '.png')
-        tensor = torch.tensor([-2.838, 0.01]).to(device)
-        tensor = model.decode(tensor).cpu()
-        save_image(tensor.view(1, 1, 28, 28),
-                    'results/broken.png')
-
+    tensor = torch.tensor([-2.838, 0.01]).to(device)
+    tensor = model.decode(tensor).cpu()
+    save_image(tensor.view(1, 1, 28, 28),
+                'results/broken.png')
+    if not load_model:
+        # training loss graph
+        plt.plot(range(1, args.epochs + 1), train_losses)
+        plt.xlabel('Epoch')
+        plt.ylabel('Loss')
+        plt.title('Variational Autoencoder Training Loss')
+        plt.show()
         
 
-# show 2d picture thingy
+# 8x8 samples from 2d latent space
 n = 10
 digit_size = 28
 figure = np.zeros((digit_size * n, digit_size * n))
@@ -244,8 +251,8 @@ sample_range_x = np.round(grid_x, 4)
 sample_range_y = np.round(grid_y, 4)
 plt.xticks(pixel_range, sample_range_x)
 plt.yticks(pixel_range, sample_range_y)
-plt.xlabel("Z [0]")
-plt.ylabel("Z [1]")
+plt.xlabel("Z D1")
+plt.ylabel("Z D2")
 plt.imshow(figure, cmap='Greys_r')
 plt.savefig('fig.jpg')
 plt.show()
