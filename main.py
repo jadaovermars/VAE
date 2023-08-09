@@ -135,11 +135,12 @@ def test(epoch):
     test_loss /= len(test_loader.dataset)
     print('====> Test set loss: {:.4f}'.format(test_loss))
     
-    if epoch == args.epochs:
+    if epoch % 10 == 0:
         torch.save(model.state_dict(), "model.pt")
 
-        # latent space distributions figure
-        cmap = ListedColormap(['purple', 'blue', 'green', 'orange', 'red', 'brown', 'pink', 'gray', 'olive', 'cyan'])
+    if epoch == args.epochs:
+        torch.save(model.state_dict(), "model.pt")
+        cmap = ListedColormap(['purple', 'blue', 'green', 'orange', 'red', 'brown', 'pink', 'yellow', 'olive', 'cyan'])
 
         latent_vectors = np.concatenate(latent_vectors, axis=0)
         x = latent_vectors[:, 0]
@@ -220,8 +221,8 @@ if __name__ == "__main__":
         plt.show()
         
 
-# 8x8 samples from 2d latent space
-n = 10
+# 20x20 samples from 2d latent space
+n = 20
 digit_size = 28
 figure = np.zeros((digit_size * n, digit_size * n))
 grid_x = np.linspace(-2, 2, n)
